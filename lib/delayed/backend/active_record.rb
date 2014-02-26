@@ -60,7 +60,11 @@ module Delayed
             # Note: active_record would attempt to generate UPDATE...LIMIT like sql for postgres if we use a .limit() filter, but it would not use
             # 'FOR UPDATE' and we would have many locking conflicts
             quoted_table_name = self.connection.quote_table_name(self.table_name)
-            subquery_sql      = ready_scope.limit(1).lock(true).select('id').to_sql
+            if self.connection.send(:postgresql_version) < 9_00_00
+              subquery_sql    = ready_scope.limit(1).select('id').to_sql
+            else
+              subquery_sql    = ready_scope.limit(1).lock(true).select('id').to_sql
+            end
             reserved          = self.find_by_sql(["UPDATE #{quoted_table_name} SET locked_at = ?, locked_by = ? WHERE id IN (#{subquery_sql}) RETURNING *", now, worker.name])
             reserved[0]
           when "MySQL", "Mysql2"
